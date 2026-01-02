@@ -1,8 +1,7 @@
-
 import React, { useEffect } from 'react';
-import { X, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
-export type NotificationType = 'success' | 'error';
+export type NotificationType = 'success' | 'error' | 'banner';
 
 interface NotificationToastProps {
   message: string;
@@ -18,20 +17,63 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({ message, t
     return () => clearTimeout(timer);
   }, [onClose]);
 
+  const isBanner = type === 'banner';
+  const isSuccess = type === 'success';
+
   return (
-    <div className={`fixed top-20 right-6 z-50 max-w-sm w-full bg-white rounded-xl shadow-2xl border-l-4 flex items-start p-4 animate-in slide-in-from-right-10 fade-in duration-300 ${
-        type === 'success' ? 'border-green-500' : 'border-red-500'
-    }`}>
-      <div className={`p-1 rounded-full mr-3 shrink-0 ${type === 'success' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-        {type === 'success' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+    <div
+      className={
+        `fixed top-20 right-6 z-50 max-w-sm w-full rounded-xl shadow-2xl flex items-start p-4 animate-in slide-in-from-right-10 fade-in duration-300 ` +
+        (isBanner
+          ? 'bg-indigo-600 text-white border border-indigo-500'
+          : 'bg-white border-l-4 ' + (isSuccess ? 'border-green-500' : 'border-red-500'))
+      }
+    >
+      <div
+        className={
+          'p-1 rounded-full mr-3 shrink-0 ' +
+          (isBanner
+            ? 'bg-indigo-500 text-white'
+            : isSuccess
+              ? 'bg-green-100 text-green-600'
+              : 'bg-red-100 text-red-600')
+        }
+      >
+        {isBanner
+          ? <RefreshCw className="w-5 h-5" />
+          : isSuccess
+            ? <CheckCircle className="w-5 h-5" />
+            : <AlertCircle className="w-5 h-5" />}
       </div>
       <div className="flex-1 mr-2">
-        <h4 className={`text-sm font-bold ${type === 'success' ? 'text-green-800' : 'text-red-800'}`}>
-            {type === 'success' ? 'Success' : 'Error'}
+        <h4
+          className={
+            'text-sm font-bold ' +
+            (isBanner
+              ? 'text-white'
+              : isSuccess
+                ? 'text-green-800'
+                : 'text-red-800')
+          }
+        >
+          {isBanner ? 'Synchronizing' : isSuccess ? 'Success' : 'Error'}
         </h4>
-        <p className="text-sm text-slate-600 mt-0.5 leading-snug">{message}</p>
+        <p
+          className={
+            'text-sm mt-0.5 leading-snug ' +
+            (isBanner ? 'text-indigo-50' : 'text-slate-600')
+          }
+        >
+          {message}
+        </p>
       </div>
-      <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+      <button
+        onClick={onClose}
+        className={
+          'transition-colors ' +
+          (isBanner ? 'text-indigo-100 hover:text-white' : 'text-slate-400 hover:text-slate-600')
+        }
+      >
         <X className="w-4 h-4" />
       </button>
     </div>

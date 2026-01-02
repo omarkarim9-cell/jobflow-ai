@@ -1,5 +1,5 @@
-import { Job, UserProfile } from '../types';
-import { getSmartApplicationUrl } from './geminiService';
+import { Job, UserProfile } from '../types.ts';
+import { getSmartApplicationUrl } from './geminiService.ts';
 
 /**
  * Simulates the backend Playwright automation service defined in URD Section 4.8.

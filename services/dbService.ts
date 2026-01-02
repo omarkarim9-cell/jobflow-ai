@@ -1,4 +1,4 @@
-import { Job, UserProfile, UserPreferences } from '../types';
+import { Job, UserProfile, UserPreferences } from '../types.ts';
 
 /**
  * Service to interact with Neon PostgreSQL via Vercel Serverless Functions.

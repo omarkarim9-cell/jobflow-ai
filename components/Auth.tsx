@@ -1,3 +1,4 @@
+//Auth.tsx
 import React from 'react';
 import { SignIn, SignUp } from '@clerk/clerk-react';
 import { Briefcase, ShieldCheck } from 'lucide-react';
