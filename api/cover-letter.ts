@@ -1,46 +1,69 @@
+// api/cover-letter.ts
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { GoogleGenAI } from '@google/genai';
 
-import { VercelRequest, VercelResponse } from '@vercel/node';
-import * as ClerkServer from '@clerk/nextjs/server';
-import { GoogleGenAI } from "@google/genai";
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  console.log('[COVER-LETTER] HANDLER START, NODE_ENV =', process.env.NODE_ENV, 'method:', req.method);
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
-    const Clerk = (ClerkServer as any).default || ClerkServer;
-    const auth = Clerk.getAuth(req);
-    const userId = auth?.userId;
+    const { title, company, description, resume, name, email } = req.body as {
+      title: string;
+      company: string;
+      description: string;
+      resume: string;
+      name: string;
+      email: string;
+    };
 
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!title || !description || !resume || !name || !email) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
 
-    const { title, company, description, resume, name, email } = req.body;
-    if (!title || !description || !resume) return res.status(400).json({ error: 'Missing required fields' });
+    const isPlaceholder =
+      !company ||
+      company.toLowerCase().includes('review') ||
+      company.toLowerCase().includes('unknown') ||
+      company.toLowerCase().includes('site') ||
+      company.toLowerCase().includes('description');
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const isPlaceholder = !company || 
-        company.toLowerCase().includes("review") || 
-        company.toLowerCase().includes("unknown");
+    const contents = `Write a professional, high-impact cover letter for the ${title} position.
+
+CONTEXT:
+- Target Company: ${
+      isPlaceholder
+        ? 'Carefully scan the job description below to identify the actual company name. If not found, use "Hiring Manager".'
+        : company
+    }
+- Candidate: ${name} (${email})
+- Job Description: ${description}
+- Source Resume: ${resume}
+
+STRICT INSTRUCTIONS:
+- NEVER use the phrase "Review Required", "Unknown Company", "Check Site", or "Check Description" in the letter.
+- Address the recipient formally.
+- Match candidate skills to the requirements in the job description.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Write a professional, high-impact cover letter for the ${title} position at ${isPlaceholder ? 'your company' : company}.
-        
-        CANDIDATE: ${name} (${email})
-        RESUME: ${resume}
-        JOB DESCRIPTION: ${description}
-        
-        INSTRUCTIONS:
-        - Match skills to the specific requirements listed in the job description.
-        - Maintain a professional, confident, and persuasive tone.
-        - ABSOLUTELY NO placeholders like [Company Name] or [Job Title]. Use the data provided.`,
+      contents,
       config: {
-        systemInstruction: "You are an expert career coach writing professional, ATS-optimized cover letters that stand out."
-      }
+        systemInstruction:
+          'You are an expert career coach writing professional, ATS-optimized cover letters.',
+      },
     });
 
-    return res.status(200).json({ text: response.text || "" });
+    const text = response.text || '';
+    return res.status(200).json({ text });
   } catch (error: any) {
-    console.error('[API/COVER-LETTER] Error:', error.message);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('[COVER-LETTER] Error:', error);
+    return res
+      .status(500)
+      .json({ error: error.message || 'Failed to generate cover letter' });
   }
 }

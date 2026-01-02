@@ -1,39 +1,59 @@
+// api/tailor-resume.ts
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { GoogleGenAI } from '@google/genai';
 
-import { VercelRequest, VercelResponse } from '@vercel/node';
-import * as ClerkServer from '@clerk/nextjs/server';
-import { GoogleGenAI } from "@google/genai";
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+  console.log('[TAILOR-RESUME] HANDLER START, NODE_ENV =', process.env.NODE_ENV, 'method:', req.method);
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
   try {
-    const Clerk = (ClerkServer as any).default || ClerkServer;
-    const auth = Clerk.getAuth(req);
-    const userId = auth?.userId;
+    const { title, company, description, resume, email } = req.body as {
+      title: string;
+      company: string;
+      description: string;
+      resume: string;
+      email: string;
+    };
 
-    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+    if (!title || !description || !resume || !email) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
 
-    const { title, company, description, resume, email } = req.body;
-    if (!title || !description || !resume) return res.status(400).json({ error: 'Missing required fields' });
+    const isPlaceholder =
+      !company ||
+      company.toLowerCase().includes('review') ||
+      company.toLowerCase().includes('unknown');
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const contents = `Tailor this resume for a ${title} role at ${
+      isPlaceholder ? 'the target company' : company
+    }.
+
+Email: ${email}.
+
+Original Resume: ${resume}
+
+Job Description: ${description}`;
+
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Tailor this resume for a ${title} role at ${company || 'your company'}. 
-        Email: ${email}. 
-        Resume: ${resume}
-        Job Description: ${description}
-        
-        TASK:
-        Rewrite bullet points to emphasize relevant experience for the specific role. Ensure the contact information is updated correctly. Keep the layout professional and text-based. Do not include placeholders.`,
+      contents,
       config: {
-        systemInstruction: "You are a professional resume writer specializing in ATS optimization and role-specific tailoring."
-      }
+        systemInstruction:
+          'You are a professional resume writer specializing in ATS optimization. Rewrite bullet points to emphasize relevant experience for the specific role.',
+      },
     });
 
-    return res.status(200).json({ text: response.text || "" });
+    const text = response.text || '';
+    return res.status(200).json({ text });
   } catch (error: any) {
-    console.error('[API/TAILOR-RESUME] Error:', error.message);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('[TAILOR-RESUME] Error:', error);
+    return res
+      .status(500)
+      .json({ error: error.message || 'Failed to tailor resume' });
   }
 }
