@@ -44,18 +44,17 @@ export const saveUserProfile = async (profile: UserProfile, clerkToken: string) 
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${clerkToken}`,
-                'x-clerk-user-id': profile.id  // ✅ FIXED: Added missing header
+                'Authorization': `Bearer ${clerkToken}`
             },
             body: JSON.stringify(profile)
         });
-
+        
         if (!response.ok) {
             const errData = await response.json();
             console.error('[dbService] Profile save failed:', errData);
             throw new Error(errData.message || 'Cloud sync failed');
         }
-
+        
         const data = await response.json();
         const normalized = normalizeProfile(data);
         if (normalized) localStorage.setItem(LOCAL_PROFILE_KEY, JSON.stringify(normalized));
@@ -66,13 +65,10 @@ export const saveUserProfile = async (profile: UserProfile, clerkToken: string) 
     }
 };
 
-export const getUserProfile = async (clerkToken: string, userId: string): Promise<UserProfile | null> => {
+export const getUserProfile = async (clerkToken: string): Promise<UserProfile | null> => {
     try {
         const response = await fetch(`${API_BASE}/profile`, {
-            headers: {
-                'Authorization': `Bearer ${clerkToken}`,
-                'x-clerk-user-id': userId  // ✅ FIXED: Added missing header
-            }
+            headers: { 'Authorization': `Bearer ${clerkToken}` }
         });
         if (response.ok) {
             const data = await response.json();
@@ -136,4 +132,20 @@ export const saveJobToDb = async (job: Job, clerkToken: string) => {
     }
 };
 
-export const deleteJobFromDb = a
+export const deleteJobFromDb = async (jobId: string, clerkToken: string) => {
+    const cached = localStorage.getItem(LOCAL_JOBS_KEY);
+    if (cached) {
+        const jobs: Job[] = JSON.parse(cached);
+        localStorage.setItem(LOCAL_JOBS_KEY, JSON.stringify(jobs.filter(j => j.id !== jobId)));
+    }
+    try {
+        await fetch(`${API_BASE}/jobs?id=${jobId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${clerkToken}` }
+        });
+    } catch (e) {
+        console.warn("[dbService] Job delete network error:", e);
+    }
+};
+
+export const isProductionMode = () => true;
