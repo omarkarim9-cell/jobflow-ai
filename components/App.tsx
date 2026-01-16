@@ -55,68 +55,56 @@ export const App: React.FC = () => {
   const showNotification = useCallback((message: string, type: NotificationType) => {
     setNotification({ message, type });
   }, []);
-
-  const syncData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const token = await getToken();
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      let profile: UserProfile | null = null;
-      let dbJobs: Job[] = [];
-
-      try {
-        profile = await getUserProfile(token);
-        dbJobs = await fetchJobsFromDb(token);
-      } catch (dbError) {
-        console.warn('Database not available, using local state:', dbError);
-      }
-
-      if (!profile && user) {
-        profile = {
-          id: user.id,
-          fullName: user.fullName || '',
-          email: user.primaryEmailAddress?.emailAddress || '',
-          phone: '',
-          resumeContent: '',
-          onboardedAt: new Date().toISOString(),
-          preferences: {
-            targetRoles: [],
-            targetLocations: [],
-            minSalary: '',
-            remoteOnly: false,
-            language: 'en'
-          },
-          connectedAccounts: [],
-          plan: 'pro'
-        };
-
-        try {
-          const saved = await saveUserProfile(profile, token);
-          profile = saved ?? profile;
-        } catch (e) {
-          console.warn('[syncData] initial profile save failed', e);
-        }
-      }
-      
-      setUserProfile(profile);
-      setJobs(dbJobs);
-    } catch (e) {
-      console.error('Sync Error:', e);
-      showNotification('Using local offline data.', 'success');
-    } finally {
+const syncData = useCallback(async () => {
+  setLoading(true);
+  try {
+    const token = await getToken();
+    if (!token || !user) {
       setLoading(false);
+      return;
     }
-  }, [getToken, user, showNotification]);
-
+    
+    // 🔥 FIX 1: CLEAR localStorage per user
+    localStorage.removeItem('jobs');
+    localStorage.removeItem('userProfile');
+    
+    // 🔥 FIX 2: FAIL HARD if DB fails - NO local fallback
+    const profile: UserProfile = await getUserProfile(token);
+    const dbJobs: Job[] = await fetchJobsFromDb(token);
+    
+    // Create profile if missing
+    if (!profile.id) {
+      const newProfile: UserProfile = {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.primaryEmailAddress?.emailAddress,
+        phone: '',
+        resumeContent: '',
+        onboardedAt: new Date().toISOString(),
+        preferences: { targetRoles: [], targetLocations: [], minSalary: 0, remoteOnly: false, language: 'en', connectedAccounts: [], plan: 'pro' }
+      };
+      await saveUserProfile(newProfile, token);
+      setUserProfile(newProfile);
+    } else {
+      setUserProfile(profile);
+    }
+    
+    setJobs(dbJobs);
+    
+  } catch (e) {
+    console.error('🚨 CRITICAL SYNC ERROR - DB DOWN?', e);
+    showNotification('Database sync failed. Please refresh.', 'error');
+  } finally {
+    setLoading(false);
+  }
+}, [user?.id, getToken, showNotification]); // 🔥 user?.id triggers rebind
   // Trigger initial sync after Clerk has loaded and user is signed in
-  useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
-    syncData();
-  }, [isLoaded, isSignedIn, syncData]);
+  // Change from [isLoaded, isSignedIn] → [user?.id]
+useEffect(() => {
+  if (!isLoaded || !isSignedIn || !user?.id) return;
+  syncData();
+}, [user?.id, syncData]); // 🔥 Triggers on NEW user login
+
 
   const handleNavigate = useCallback((view: ViewState) => {
     setCurrentView(view);
@@ -260,12 +248,16 @@ export const App: React.FC = () => {
           </button>
         </div>
         <div className="p-4 border-t border-slate-200 mt-auto">
-          <button
-            onClick={() => signOut()}
-            className="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-400 hover:text-red-600 transition-colors font-bold text-xs uppercase tracking-widest"
-          >
-            <LogOut className="w-4 h-4 me-3" /> Sign Out
-          </button>
+         <button
+  onClick={async () => {
+    localStorage.clear();  // 🔥 LOCATION: Clears ALL on logout
+    await signOut();
+  }}
+  className="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-400 hover:text-red-600 transition-colors font-bold text-xs uppercase tracking-widest"
+>
+  <LogOut className="w-4 h-4 me-3" /> Sign Out
+</button>
+
         </div>
       </aside>
 
